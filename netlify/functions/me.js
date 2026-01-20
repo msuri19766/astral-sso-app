@@ -2,9 +2,12 @@ const jwt = require("jsonwebtoken");
 
 function readCookie(cookieHeader, name) {
   if (!cookieHeader) return null;
-  const parts = cookieHeader.split(";").map(p => p.trim());
+
+  const parts = cookieHeader.split(";").map((p) => p.trim());
   for (const part of parts) {
-    if (part.startsWith(name + "=")) return part.substring(name.length + 1);
+    if (part.startsWith(name + "=")) {
+      return part.substring(name.length + 1);
+    }
   }
   return null;
 }
@@ -13,13 +16,22 @@ exports.handler = async (event) => {
   try {
     const secret = process.env.SSO_JWT_SECRET;
     if (!secret) {
-      return { statusCode: 500, body: JSON.stringify({ error: "MISSING_ENV_SECRET" }) };
+      return {
+        statusCode: 500,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "MISSING_ENV_SECRET" }),
+      };
     }
 
-    const cookieHeader = event.headers.cookie || "";
+    const cookieHeader = event.headers.cookie || event.headers.Cookie || "";
     const sessionToken = readCookie(cookieHeader, "app_session");
+
     if (!sessionToken) {
-      return { statusCode: 401, body: JSON.stringify({ error: "NO_SESSION" }) };
+      return {
+        statusCode: 401,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "NO_SESSION" }),
+      };
     }
 
     const decoded = jwt.verify(sessionToken, secret, {
@@ -36,4 +48,16 @@ exports.handler = async (event) => {
         user: {
           id: decoded.sub,
           email: decoded.email || "",
-          name
+          name: decoded.name || "",
+          tier: decoded.tier || "member",
+        },
+      }),
+    };
+  } catch (e) {
+    return {
+      statusCode: 401,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ error: "INVALID_SESSION", detail: e.message }),
+    };
+  }
+};
