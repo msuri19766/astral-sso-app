@@ -8,13 +8,23 @@
     <h3>Signing you in…</h3>
 
     <script>
+      function getParam(name) {
+        const url = new URL(window.location.href);
+        return url.searchParams.get(name);
+      }
+
       (async function () {
         try {
+          // Wix sends token in URL hash: /sso.html#token=...
           const hash = new URLSearchParams(window.location.hash.replace("#", ""));
           const token = hash.get("token");
           if (!token) throw new Error("Missing token");
 
-          // Step 5 will create this function
+          // Detect mobile mode (coming from app.html?mobile=1...)
+          const isMobile = getParam("mobile") === "1";
+          const redirectUri = getParam("redirect_uri"); // astralalgomobile://auth
+
+          // Keep your existing behavior: exchange token -> set cookie
           const res = await fetch("/.netlify/functions/sso-exchange", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -26,6 +36,18 @@
             throw new Error(errText || "SSO exchange failed");
           }
 
+          // ✅ Mobile: send user back to app.html with token + redirect_uri
+          if (isMobile && redirectUri) {
+            const next =
+              "/app.html?mobile=1" +
+              "&redirect_uri=" + encodeURIComponent(redirectUri) +
+              "&token=" + encodeURIComponent(token);
+
+            window.location.replace(next);
+            return;
+          }
+
+          // ✅ Web: unchanged
           window.location.replace("/app.html");
         } catch (e) {
           document.body.innerHTML =
