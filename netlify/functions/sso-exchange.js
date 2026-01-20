@@ -6,55 +6,57 @@ exports.handler = async (event) => {
       return { statusCode: 405, body: "Method Not Allowed" };
     }
 
-    const secret = process.env.SSO_JWT_SECRET;
-    if (!secret) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: "MISSING_ENV_SECRET" }),
-      };
-    }
-
-    const body = JSON.parse(event.body || "{}");
-    const token = body.token;
-
+    const { token } = JSON.parse(event.body || "{}");
     if (!token) {
-      return { statusCode: 400, body: JSON.stringify({ error: "MISSING_TOKEN" }) };
+      return { statusCode: 400, body: JSON.stringify({ ok: false, error: "MISSING_TOKEN" }) };
     }
 
-    // 1) Verify the short-lived token issued by Wix
-    const decoded = jwt.verify(token, secret, {
-      algorithms: ["HS256"],
-      audience: "netlify-app",
-      issuer: "wix",
-    });
+    const SSO_JWT_SECRET = process.env.SSO_JWT_SECRET;
+    const APP_SESSION_SECRET = process.env.APP_SESSION_SECRET || process.env.SSO_JWT_SECRET;
 
-    // 2) Create a session token for your app (valid longer)
+    if (!SSO_JWT_SECRET) {
+      return { statusCode: 500, body: JSON.stringify({ ok: false, error: "MISSING_SSO_JWT_SECRET" }) };
+    }
+    if (!APP_SESSION_SECRET) {
+      return { statusCode: 500, body: JSON.stringify({ ok: false, error: "MISSING_APP_SESSION_SECRET" }) };
+    }
+
+    // 1) Verify the Wix-issued token (this one should contain tier)
+    const wixPayload = jwt.verify(token, SSO_JWT_SECRET, { audience: "netlify-app" });
+
+    // 2) Create the Netlify session token (COPY tier INTO THIS TOKEN)
     const now = Math.floor(Date.now() / 1000);
+
     const sessionPayload = {
-      sub: decoded.sub,
-      email: decoded.email || "",
-      name: decoded.name || "",
+      sub: wixPayload.sub,
+      email: wixPayload.email || "",
+      name: wixPayload.name || "",
+      tier: wixPayload.tier || "member",   // ✅ IMPORTANT LINE
       iat: now,
-      exp: now + 60 * 60 * 12, // 12 hours
+      exp: now + 60 * 60 * 24,             // 24h session
       iss: "netlify-app",
-      aud: "netlify-app",
+      aud: "netlify-app"
     };
 
-    const sessionToken = jwt.sign(sessionPayload, secret, { algorithm: "HS256" });
+    const sessionToken = jwt.sign(sessionPayload, APP_SESSION_SECRET, { algorithm: "HS256" });
 
-    // 3) Set cookie (HttpOnly prevents JS access)
+    // Cookie settings (works on https)
+    const cookie =
+      `app_session=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60 * 60 * 24}`;
+
     return {
       statusCode: 200,
       headers: {
-        "Set-Cookie": `app_session=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/`,
-        "Content-Type": "application/json",
+        "Set-Cookie": cookie,
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify({ ok: true }),
+      body: JSON.stringify({ ok: true })
     };
-  } catch (e) {
+  } catch (err) {
     return {
       statusCode: 401,
-      body: JSON.stringify({ error: "INVALID_TOKEN", detail: e.message }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ok: false, error: err.message })
     };
   }
 };

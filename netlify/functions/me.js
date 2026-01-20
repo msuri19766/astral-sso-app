@@ -14,7 +14,8 @@ function readCookie(cookieHeader, name) {
 
 exports.handler = async (event) => {
   try {
-    const secret = process.env.SSO_JWT_SECRET;
+    // ✅ app_session should be verified with APP_SESSION_SECRET (fallback to SSO_JWT_SECRET)
+    const secret = process.env.APP_SESSION_SECRET || process.env.SSO_JWT_SECRET;
     if (!secret) {
       return {
         statusCode: 500,
