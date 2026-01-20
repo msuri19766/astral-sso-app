@@ -9,9 +9,39 @@
     <div id="status">Checking session…</div>
 
     <script>
+      function getParam(name) {
+        const url = new URL(window.location.href);
+        return url.searchParams.get(name);
+      }
+
       (async function () {
         try {
-         const res = await fetch("/.netlify/functions/me", { credentials: "include" });
+          // ✅ Mobile mode support (does NOT break web)
+          const isMobile = getParam("mobile") === "1";
+          const mobileRedirect = getParam("redirect_uri"); // e.g. astralalgomobile://auth
+          const token = getParam("token"); // Wix-issued SSO token (must be provided by your flow)
+
+          // If we're in mobile mode AND we already have the Wix token,
+          // immediately deep-link back into the mobile app.
+          if (isMobile && mobileRedirect && token) {
+            document.getElementById("status").innerHTML =
+              "<b>✅ Mobile login success</b><br/>Returning to the app…";
+            window.location.href = `${mobileRedirect}?code=${encodeURIComponent(token)}`;
+            return;
+          }
+
+          // If mobile mode but token missing, show helpful debug info (web remains unaffected)
+          if (isMobile) {
+            document.getElementById("status").innerHTML =
+              "<b>📱 Mobile mode</b><br/>" +
+              "Waiting for token…<br/><br/>" +
+              "Required URL format:<br/>" +
+              "<code>?mobile=1&redirect_uri=astralalgomobile://auth&token=YOUR_WIX_TOKEN</code>";
+            return;
+          }
+
+          // ✅ Existing web behavior (UNCHANGED)
+          const res = await fetch("/.netlify/functions/me", { credentials: "include" });
           if (!res.ok) throw new Error("Not logged in (no valid session cookie).");
 
           const data = await res.json();
