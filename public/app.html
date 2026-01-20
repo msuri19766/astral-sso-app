@@ -6,6 +6,28 @@
   </head>
   <body>
     <h2>App Home</h2>
-    <p>Next step: we’ll verify your login by calling a <code>/me</code> function.</p>
+    <div id="status">Checking session…</div>
+
+    <script>
+      (async function () {
+        try {
+          const res = await fetch("/.netlify/functions/me");
+          if (!res.ok) throw new Error("Not logged in (no valid session cookie).");
+
+          const data = await res.json();
+          const u = data.user;
+
+          document.getElementById("status").innerHTML =
+            "<b>✅ Logged in</b><br/>" +
+            "Name: " + (u.name || "-") + "<br/>" +
+            "Email: " + (u.email || "-") + "<br/>" +
+            "Tier: <b>" + (u.tier || "member") + "</b>";
+        } catch (e) {
+          document.getElementById("status").innerHTML =
+            "<b>❌ Not logged in</b><br/>" +
+            (e.message || e);
+        }
+      })();
+    </script>
   </body>
 </html>
