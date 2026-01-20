@@ -11,7 +11,7 @@
     <script>
       (async function () {
         try {
-          const res = await fetch("/.netlify/functions/me");
+         const res = await fetch("/.netlify/functions/me", { credentials: "include" });
           if (!res.ok) throw new Error("Not logged in (no valid session cookie).");
 
           const data = await res.json();
