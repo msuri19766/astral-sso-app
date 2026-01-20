@@ -14,24 +14,48 @@
         return url.searchParams.get(name);
       }
 
+      function escapeHtml(s) {
+        return String(s || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
       (async function () {
         try {
-          // ✅ Mobile mode support (does NOT break web)
           const isMobile = getParam("mobile") === "1";
-          const mobileRedirect = getParam("redirect_uri"); // e.g. astralalgomobile://auth
-          const token = getParam("token"); // Wix-issued SSO token (must be provided by your flow)
+          const mobileRedirect = getParam("redirect_uri"); // astralalgomobile://auth
+          const token = getParam("token"); // wix token
 
-          // If we're in mobile mode AND we already have the Wix token,
-          // immediately deep-link back into the mobile app.
-          if (isMobile && mobileRedirect && token) {
-            document.getElementById("status").innerHTML =
-              "<b>✅ Mobile login success</b><br/>Returning to the app…";
-            window.location.href = `${mobileRedirect}?code=${encodeURIComponent(token)}`;
-            return;
-          }
-
-          // If mobile mode but token missing, show helpful debug info (web remains unaffected)
+          // ✅ Mobile mode
           if (isMobile) {
+            if (mobileRedirect && token) {
+              const deepLink = `${mobileRedirect}?code=${encodeURIComponent(token)}`;
+
+              document.getElementById("status").innerHTML =
+                "<b>✅ Mobile login success</b><br/>" +
+                "Tap the button below to return to the app.<br/><br/>" +
+                `<a href="${escapeHtml(deepLink)}" style="
+                  display:inline-block;
+                  padding:12px 18px;
+                  border-radius:10px;
+                  background:#000;
+                  color:#fff;
+                  text-decoration:none;
+                  font-weight:600;
+                ">Open AstralAlgoMobile</a><br/><br/>` +
+                "<small>If it doesn’t open automatically, tap the button.</small>";
+
+              // Try auto-redirect too (may be blocked by iOS without a user gesture)
+              setTimeout(() => {
+                window.location.href = deepLink;
+              }, 700);
+
+              return;
+            }
+
             document.getElementById("status").innerHTML =
               "<b>📱 Mobile mode</b><br/>" +
               "Waiting for token…<br/><br/>" +
@@ -40,7 +64,7 @@
             return;
           }
 
-          // ✅ Existing web behavior (UNCHANGED)
+          // ✅ Web behavior (unchanged)
           const res = await fetch("/.netlify/functions/me", { credentials: "include" });
           if (!res.ok) throw new Error("Not logged in (no valid session cookie).");
 
