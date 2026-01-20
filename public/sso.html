@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Signing you in…</title>
+  </head>
+  <body>
+    <h3>Signing you in…</h3>
+
+    <script>
+      (async function () {
+        try {
+          const hash = new URLSearchParams(window.location.hash.replace("#", ""));
+          const token = hash.get("token");
+          if (!token) throw new Error("Missing token");
+
+          // Step 5 will create this function
+          const res = await fetch("/.netlify/functions/sso-exchange", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token })
+          });
+
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(errText || "SSO exchange failed");
+          }
+
+          window.location.replace("/app.html");
+        } catch (e) {
+          document.body.innerHTML =
+            "<h3>SSO failed</h3><pre style='white-space:pre-wrap;'>" +
+            (e && e.message ? e.message : String(e)) +
+            "</pre>";
+        }
+      })();
+    </script>
+  </body>
+</html>
